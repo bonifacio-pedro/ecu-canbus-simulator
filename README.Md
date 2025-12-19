@@ -172,6 +172,25 @@ ERROR CODE: 0
 ===================
 ```
 
+
+### With CAN Errors:
+```
+=== ACTUAL STATE ==
+RPM: 4523
+SPEED: 145
+THROTTLE: 78
+BRAKE: 0
+GEAR: 4
+ENGINE TEMP: 92
+OIL PRESSURE: 65
+BATTERY_VOLTAGE: 140
+ERROR CODE: 0x03  ← Checksum (0x01) + Sequence (0x02) errors!
+⚠️  CAN CHECKSUM ERROR DETECTED!
+⚠️  CAN SEQUENCE ERROR DETECTED!
+===================
+```
+
+
 ## 🎯 Technical Highlights
 
 **For Automotive Engineers:**
