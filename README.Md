@@ -16,33 +16,96 @@
 - ✅ **Diagnostic System**: Error codes (DTC-like), multi-sensor monitoring
 - ✅ **Telemetry Export**: CSV logging for post-analysis
 - ✅ **Python Visualization**: Automated plotting and analysis
+  
+## 🔒 Safety Features (NEW!)1. XOR Checksum Validation
+1. XOR Checksum Validation
+    Every CAN frame includes an XOR checksum to detect data corruption:
+    ```c
+    uint8_t can_checksum(const uint8_t *data, uint8_t len) {
+        uint8_t cs = 0;
+        for (uint8_t i = 0; i < len; i++) {
+            cs ^= data[i];
+        }
+        return cs;
+    }
+    ``` 
+    Protection against:
+- ✅ Bit flips during transmission
+- ✅ Electrical noise interference
+- ✅ Hardware failures
 
+2. Sequence Counter Validation
+    Each frame type has an independent rolling counter (0-255):
+    ```c
+    static uint8_t seq_powertrain = 0;  // Increments with each transmission
+    static uint8_t last_seq_powertrain = 0xFF;  // Tracks expected sequence
+    ```
+Detection of:
+- ✅ Lost messages (gap in sequence)
+- ✅ Duplicated messages (same sequence twice)
+- ✅ Out-of-order messages (sequence jump)
+
+3. Error Code System
+When validation fails, specific error flags are set:
+```c
+typedef enum {
+    ECU_ERR_NONE          = 0x00,
+    ECU_ERR_CAN_CHECKSUM  = 0x01,
+    ECU_ERR_CAN_SEQ       = 0x02,
+    ECU_ERR_CAN_TIMEOUT   = 0x04,
+    ECU_ERR_OVER_RPM      = 0x08,
+    ECU_ERR_OVER_TEMP     = 0x10,
+} ECUErrorCode;
+```
 ## 🏗️ Architecture
 
 ```
-    ┌─────────────────────────────────────────────┐
-    │            CAN BUS SIMULATOR                │
-    └─────────────────────────────────────────────┘
-    ECU_TX (Transmitter)
-    │
-    ├─→ encode_powertrain_frame()  → CAN ID 0x100
-    ├─→ encode_dynamics_frame()    → CAN ID 0x200
-    └─→ encode_sensors_frame()     → CAN ID 0x300
-    │
-    ↓
-    ┌────────────────────────┐
-    │      CAN BUS           │
-    │  • send()              │
-    │  • arbitrate() ← 🔥    │
-    │  • deliver()           │
-    └────────────────────────┘
-    │
-    ↓
-    ECU_RX (Receiver)
-    │
-    ├─→ decode_powertrain_frame()
-    ├─→ decode_dynamics_frame()
-    └─→ decode_sensors_frame() 
+┌─────────────────────────────────────────────┐
+│         CAN BUS SIMULATOR                   │
+└─────────────────────────────────────────────┘
+
+ECU_TX (Transmitter)
+  │
+  ├─→ encode_powertrain_frame()  → CAN ID 0x100
+  │    ├─ Data encoding
+  │    ├─ Sequence counter++
+  │    └─ XOR checksum
+  │
+  ├─→ encode_dynamics_frame()    → CAN ID 0x200
+  │    ├─ Data encoding
+  │    ├─ Sequence counter++
+  │    └─ XOR checksum
+  │
+  └─→ encode_sensors_frame()     → CAN ID 0x300
+       ├─ Data encoding
+       ├─ Sequence counter++
+       └─ XOR checksum
+                │
+                ↓
+   ┌────────────────────────────────────┐
+   │          CAN BUS                   │
+   │  • send()                          │
+   │  • arbitrate() ← 🔥 (by priority)  │
+   │  • deliver()                       │
+   └────────────────────────────────────┘
+                │
+                ↓
+ECU_RX (Receiver)
+  │
+  ├─→ decode_powertrain_frame()
+  │    ├─ ✓ Checksum validation
+  │    ├─ ✓ Sequence validation
+  │    └─ Data extraction
+  │
+  ├─→ decode_dynamics_frame()
+  │    ├─ ✓ Checksum validation
+  │    ├─ ✓ Sequence validation
+  │    └─ Data extraction
+  │
+  └─→ decode_sensors_frame()
+       ├─ ✓ Checksum validation
+       ├─ ✓ Sequence validation
+       └─ Data extraction
 ```
 
 ## 🚀 Quick Start
@@ -62,27 +125,36 @@ jupyter notebook analyze_telemetry.ipynb
 ## 📊 CAN Frame Structure
 
 ### Frame 1: Powertrain (ID 0x100, DLC 4)
-| Byte | Data | Format | Range |
-|------|------|--------|-------|
-| 0-1  | RPM  | uint16_t (Big-Endian) | 0-8000 |
-| 2    | Gear | uint8_t | 0-6 |
-| 3    | Flags | Bit 1: Engine On<br>Bit 0: Brake | 0x00-0x03 |
+| Byte | Data | Format | Range |Notes
+|------|------|--------|-------|----
+| 0-1  | RPM  | uint16_t (Big-Endian) | 0-8000 |MSB first
+| 2    | Gear | uint8_t | 0-6 |Automatic calculation
+| 3    | Flags | Bit 1: Engine On<br>Bit 0: Brake | 0x00-0x03 |Bitwise packed
+|4|Sequence|uint8_t|0-255|Rolling counter
+|5|Checksum|uint8_t|0-255|XOR of bytes 0-4
 
 ### Frame 2: Dynamics (ID 0x200, DLC 4)
-| Byte | Data | Format | Range |
-|------|------|--------|-------|
-| 0 | Speed | uint8_t | 0-250 km/h |
-| 1 | Brake Pressure | uint8_t | 0-100% |
-| 2 | Throttle | uint8_t | 0-100% |
+| Byte | Data | Format | Range |Notes
+|------|------|--------|-------| ---
+| 0 | Speed | uint8_t | 0-250 km/h |From RPM calculation
+| 1 | Brake Pressure | uint8_t | 0-100% |Gradual increase
+| 2 | Throttle | uint8_t | 0-100% |Input simulation
+|3|Reserved|uint8_t| -|Future use
+|4|Sequence|uint8_t|0-255|Rolling counter
+|5|Checksum|uint8_t|0-255|XOR of bytes 0-4
 
 ### Frame 3: Sensors (ID 0x300, DLC 5)
-| Byte | Data | Format | Range |
-|------|------|--------|-------|
-| 0 | Engine Temp | uint8_t | 0-255°C |
-| 1 | Oil Pressure | uint8_t | 0-100 bar |
-| 2 | Battery Voltage | uint8_t | 0-255 (×0.1V) |
-| 3 | Error Code | uint8_t | DTC codes |
-| 4 | Reserved | - | - |
+| Byte | Data | Format | Range |Notes
+|------|------|--------|-------|---
+| 0 | Engine Temp | uint8_t | 0-255°C |Physics simulation
+| 1 | Oil Pressure | uint8_t | 0-100 bar |RPM-based
+| 2 | Battery Voltage | uint8_t | 0-255 (×0.1V) |12.4V = 124
+| 3 | Error Code | uint8_t | DTC codes |Multi-bit flags
+| 3 | Error Code | uint8_t | DTC codes |Multi-bit flags
+| 4 | Reserved |  | - |Future use
+|5|Sequence|uint8_t|0-255|Rolling counter
+|6|Checksum|uint8_t|0-255|XOR of bytes 0-4
+
 
 
 ## 📈 Sample Output
