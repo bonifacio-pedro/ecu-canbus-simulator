@@ -168,10 +168,21 @@ void print_ecu_state(const ECUState *s) {
     printf("ENGINE TEMP: %d\n", s->engine_temp);
     printf("OIL PRESSURE: %d\n", s->oil_pressure);
     printf("BATTERY_VOLTAGE: %d\n", s->battery_voltage);
-    printf("ERROR CODE: %d\n", s->error_code);
     
-    if(s->error_code) 
-        printf("!ERRO!: %d\n", s->error_code);
+    if (s->error_code) {
+        printf("ERROR CODE: 0x%02X\n", s->error_code);
+        switch (s->error_code) {
+            case ECU_ERR_CAN_CHECKSUM:
+                printf("→ CAN CHECKSUM ERROR\n");
+                break;
+            case ECU_ERR_CAN_SEQ:
+                printf("→ CAN SEQUENCE ERROR\n");
+                break;
+            case ECU_ERR_OVER_TEMP:
+                printf("→ ENGINE OVER TEMPERATURE\n");
+                break;
+        }
+    }
 
     printf("===================\n");
 }

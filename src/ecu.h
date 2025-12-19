@@ -7,6 +7,15 @@
 #define BRAKE_CURVE_FACTOR      0.3f 
 #define BRAKE_RELEASE_DELAY     10  
 
+typedef enum {
+    ECU_ERR_NONE          = 0x00,
+    ECU_ERR_CAN_CHECKSUM  = 0x01,
+    ECU_ERR_CAN_SEQ       = 0x02,
+    ECU_ERR_CAN_TIMEOUT   = 0x04,
+    ECU_ERR_OVER_RPM      = 0x08,
+    ECU_ERR_OVER_TEMP     = 0x10,
+} ECUErrorCode;
+
 typedef struct {
     // POWERTRAINS
     uint16_t rpm;

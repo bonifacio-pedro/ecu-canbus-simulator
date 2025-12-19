@@ -18,9 +18,9 @@
 #define CAN_ID_SENSORS          0x300
 
 // == DLC
-#define CAN_DLC_POWERTRAIN 4
-#define CAN_DLC_SENSORS    5
-#define CAN_DLC_DYNAMICS   4
+#define CAN_DLC_POWERTRAIN 6
+#define CAN_DLC_SENSORS    7
+#define CAN_DLC_DYNAMICS   6
 
 #include <stdint.h> 
 #include "ecu.h"
@@ -36,16 +36,18 @@ typedef struct {
     uint8_t  count;
 } CANBus;
 
+uint8_t can_checksum(const uint8_t *data, uint8_t len);
+
 void can_bus_send(CANBus *bus, const CANFrame *frame);
 void can_bus_arbitrate(CANBus *bus);
 void can_bus_deliver(const CANBus *bus, ECUState *ecu);
 
 void encode_powertrain_frame(const ECUState *s, CANFrame *f);
-void decode_powertrain_frame(const CANFrame *f, ECUState *s);
+int decode_powertrain_frame(const CANFrame *f, ECUState *s);
 void encode_sensors_frame(const ECUState *s, CANFrame *f);
-void decode_sensors_frame(const CANFrame *f, ECUState *s);
+int decode_sensors_frame(const CANFrame *f, ECUState *s);
 void encode_dynamics_frame(const ECUState *s, CANFrame *f);
-void decode_dynamics_frame(const CANFrame *f, ECUState *s);
+int decode_dynamics_frame(const CANFrame *f, ECUState *s);
 
 
 #endif
